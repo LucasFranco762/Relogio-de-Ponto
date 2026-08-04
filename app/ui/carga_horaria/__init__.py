@@ -1,0 +1,1 @@
+"""Módulo de carga horária."""
