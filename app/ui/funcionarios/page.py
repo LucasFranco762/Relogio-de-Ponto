@@ -8,7 +8,6 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QFormLayout,
     QHBoxLayout,
-    QInputDialog,
     QLabel,
     QLineEdit,
     QMessageBox,
@@ -57,9 +56,10 @@ def confirm_action(parent: QWidget, title: str, message: str) -> bool:
 class NewEmployeeDialog(QDialog):
     """Formulário de inclusão de funcionário."""
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, employee=None, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Novo funcionário")
+        self.editing = employee is not None
+        self.setWindowTitle("Editar funcionário" if self.editing else "Novo funcionário")
         self.setModal(True)
 
         layout = QVBoxLayout(self)
@@ -72,6 +72,8 @@ class NewEmployeeDialog(QDialog):
         self.cpf = QLineEdit()
         self.cpf.setInputMask("000.000.000-00;_")
         self.address = QLineEdit()
+        self.role = QLineEdit()
+        self.department = QLineEdit()
         self.start_date = QDateEdit(QDate.currentDate())
         self.start_date.setCalendarPopup(True)
         self.hours_format = QComboBox()
@@ -88,15 +90,31 @@ class NewEmployeeDialog(QDialog):
         form.addRow("RG", self.rg)
         form.addRow("CPF", self.cpf)
         form.addRow("Endereço", self.address)
+        form.addRow("Cargo", self.role)
+        form.addRow("Setor", self.department)
         form.addRow("Data início", self.start_date)
         form.addRow("Carga horária", self.hours_format)
         form.addRow(self.hours_value_label, self.hours_value)
         layout.addLayout(form)
 
+        if self.editing:
+            self.name.setText(employee.nome or "")
+            self.registration.setText(employee.matricula or "")
+            self.rg.setText(employee.rg or "")
+            self.cpf.setText(employee.cpf or "")
+            self.address.setText(employee.endereco or "")
+            self.role.setText(employee.cargo or "")
+            self.department.setText(employee.setor or "")
+            if employee.data_inicio:
+                self.start_date.setDate(QDate(employee.data_inicio.year, employee.data_inicio.month, employee.data_inicio.day))
+            if employee.carga_horaria_formato:
+                self.hours_format.setCurrentText(employee.carga_horaria_formato)
+            self.hours_value.setValue(employee.carga_horaria_valor or employee.carga_horaria_diaria or 8)
+
         buttons = QHBoxLayout()
         cancel = QPushButton("Cancelar")
         cancel.clicked.connect(self.reject)
-        save = QPushButton("Salvar")
+        save = QPushButton("Salvar alterações" if self.editing else "Salvar")
         save.clicked.connect(self._validate_and_accept)
         buttons.addStretch()
         buttons.addWidget(cancel)
@@ -144,6 +162,8 @@ class NewEmployeeDialog(QDialog):
             "rg": self.rg.text().strip(),
             "cpf": self.cpf.text().strip(),
             "endereco": self.address.text().strip(),
+            "cargo": self.role.text().strip(),
+            "setor": self.department.text().strip(),
             "data_inicio": self.start_date.date().toPython(),
             "carga_horaria_formato": self.hours_format.currentText(),
             "carga_horaria_valor": self.hours_value.value(),
@@ -160,7 +180,7 @@ class EmployeesPage(QWidget):
         self.search = QLineEdit(); self.search.setPlaceholderText("Pesquisar por nome ou matrícula..."); self.search.textChanged.connect(self.refresh)
         heading.addWidget(self.search)
         add = QPushButton("+ Cadastrar"); add.clicked.connect(self.add_employee); heading.addWidget(add)
-        edit = QPushButton("Editar"); edit.clicked.connect(self.edit_employee); heading.addWidget(edit)
+        self.edit_button = QPushButton("Editar"); self.edit_button.setEnabled(False); self.edit_button.clicked.connect(self.edit_employee); heading.addWidget(self.edit_button)
         self.move_button = QPushButton(); self.move_button.clicked.connect(self.move_selected); heading.addWidget(self.move_button)
         remove = QPushButton("Excluir"); remove.clicked.connect(self.delete_employee); heading.addWidget(remove)
         layout.addLayout(heading)
@@ -170,6 +190,8 @@ class EmployeesPage(QWidget):
         self.tabs.addTab(self.active_table, "Funcionários Ativos")
         self.tabs.addTab(self.inactive_table, "Funcionários Inativos")
         self.tabs.currentChanged.connect(self._update_move_button)
+        self.active_table.itemSelectionChanged.connect(self._update_actions)
+        self.inactive_table.itemSelectionChanged.connect(self._update_actions)
         layout.addWidget(self.tabs); self._update_move_button(0); self.refresh()
 
     def _create_table(self) -> QTableWidget:
@@ -182,6 +204,9 @@ class EmployeesPage(QWidget):
 
     def _update_move_button(self, index: int) -> None:
         self.move_button.setText("Mover para Inativos" if index == 0 else "Mover para Ativos")
+
+    def _update_actions(self) -> None:
+        self.edit_button.setEnabled(len(self._current_table().selectionModel().selectedRows()) == 1)
 
     def _current_table(self) -> QTableWidget:
         return self.active_table if self.tabs.currentIndex() == 0 else self.inactive_table
@@ -201,8 +226,12 @@ class EmployeesPage(QWidget):
         employees = self.service.list(self.search.text(), active=self.tabs.currentIndex() == 0)
         return employees[row].id if 0 <= row < len(employees) else None
 
+    def _selected_employee(self):
+        employee_id = self._selected_id()
+        return self.service.get(employee_id) if employee_id is not None else None
+
     def add_employee(self) -> None:
-        dialog = NewEmployeeDialog(self)
+        dialog = NewEmployeeDialog(parent=self)
         if dialog.exec():
             try:
                 self.service.save(dialog.employee_data())
@@ -212,11 +241,16 @@ class EmployeesPage(QWidget):
 
     def edit_employee(self) -> None:
         employee_id = self._selected_id()
-        if employee_id is None: return
-        text, ok = QInputDialog.getText(self, "Editar funcionário", "Matrícula;Nome")
-        if ok:
-            parts = [part.strip() for part in text.split(";", 1)]
-            if len(parts) == 2 and all(parts): self.service.save({"matricula": parts[0], "nome": parts[1]}, employee_id); self.refresh()
+        employee = self._selected_employee()
+        if employee_id is None or employee is None:
+            return
+        dialog = NewEmployeeDialog(employee, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            try:
+                self.service.save(dialog.employee_data(), employee_id)
+                self.refresh()
+            except Exception as error:
+                QMessageBox.critical(self, "Erro ao editar funcionário", str(error))
 
     def move_selected(self) -> None:
         employee_id = self._selected_id()
