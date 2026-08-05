@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -23,6 +24,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.services.employees import EmployeeService
+from app.utils.table_columns import TableColumnSettings
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4
@@ -42,8 +44,9 @@ def _hours(seconds: int, signed: bool = False) -> str:
 class WorkloadDetailDialog(QDialog):
     """Exibe marcações diárias e balanços mensais de um funcionário."""
 
-    def __init__(self, service: EmployeeService, employee_id: int, company_name: str = "", parent: QWidget | None = None) -> None:
+    def __init__(self, service: EmployeeService, employee_id: int, company_name: str = "", parent: QWidget | None = None, column_settings: TableColumnSettings | None = None) -> None:
         super().__init__(parent)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowSystemMenuHint | Qt.WindowType.WindowMaximizeButtonHint)
         self.service, self.employee_id, self.company_name = service, employee_id, company_name
         self.employee = service.get(employee_id)
         if self.employee is None:
@@ -63,7 +66,13 @@ class WorkloadDetailDialog(QDialog):
         self.end_date = QDateEdit(today); self.end_date.setCalendarPopup(True); self.end_date.setMaximumDate(today)
         apply_button = QPushButton("Atualizar histórico"); apply_button.clicked.connect(self.refresh)
         report_button = QPushButton("Gerar Relatório"); report_button.clicked.connect(self.generate_report)
-        filters.addRow("Data Início", self.start_date); filters.addRow("Data Fim", self.end_date); filters.addRow("", apply_button); filters.addRow("", report_button)
+        apply_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred)
+        report_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred)
+        action_buttons = QHBoxLayout()
+        action_buttons.addWidget(apply_button)
+        action_buttons.addSpacing(80)
+        action_buttons.addWidget(report_button)
+        filters.addRow("Data Início", self.start_date); filters.addRow("Data Fim", self.end_date); filters.addRow("", action_buttons)
         layout.addLayout(filters)
 
         layout.addWidget(QLabel("Histórico diário"))
@@ -81,6 +90,8 @@ class WorkloadDetailDialog(QDialog):
         self.daily_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.daily_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.daily_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        if column_settings:
+            column_settings.apply(self.daily_table, "carga_detalhe_diario")
         layout.addWidget(self.daily_table)
 
         layout.addWidget(QLabel("Balanço mensal"))
@@ -98,6 +109,8 @@ class WorkloadDetailDialog(QDialog):
         self.monthly_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.monthly_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.monthly_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        if column_settings:
+            column_settings.apply(self.monthly_table, "carga_detalhe_mensal")
         layout.addWidget(self.monthly_table)
         self.refresh()
 
@@ -123,10 +136,10 @@ class WorkloadDetailDialog(QDialog):
                 self.monthly_table.setItem(row, column, QTableWidgetItem(value))
 
     def _history_data(self, start, end):
-        punches = self.service.punch_history(self.employee_id, datetime.combine(start, time.min), datetime.combine(end + timedelta(days=1), time.min))
+        punches = self.service.raw_punch_history(self.employee_id, datetime.combine(start, time.min), datetime.combine(end + timedelta(days=1), time.min))
         by_day = defaultdict(list)
         for punch in punches:
-            by_day[punch.data_hora.date()].append(punch.data_hora)
+            by_day[punch.data_hora_marcacao.date()].append(punch.data_hora_marcacao)
 
         expected_seconds = int(round((self.employee.carga_horaria_diaria or self.employee.carga_horaria_valor or 8) * 3600))
         daily_rows = []
@@ -241,6 +254,6 @@ class WorkloadPage(QWidget):
             self.table.setRowHeight(row, 48)
 
     def open_detail(self, employee_id: int) -> None:
-        dialog = WorkloadDetailDialog(self.service, employee_id, self.company_name, self)
+        dialog = WorkloadDetailDialog(self.service, employee_id, self.company_name, self, getattr(self, "column_settings", None))
         if dialog.exec() == QDialog.DialogCode.Rejected and dialog.employee is None:
             QMessageBox.warning(self, "Funcionário", "Não foi possível carregar os dados do funcionário.")

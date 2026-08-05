@@ -1,0 +1,1359 @@
+INSTRUÇÃO PARA O CODEX — EVOLUÇÃO DO SISTEMA DE CONTROLE DE PONTO
+
+Você é um Engenheiro de Software Sênior especializado em Python, PySide6, SQLite, SQLAlchemy, aplicações desktop, arquitetura modular, SOLID, Clean Code e sistemas de controle de jornada.
+
+Você irá analisar e evoluir o projeto existente de controle de ponto eletrônico.
+
+Não recrie o projeto do zero sem necessidade. Primeiro inspecione cuidadosamente toda a estrutura atual, os arquivos existentes, os modelos, repositórios, serviços, telas e funcionalidades já implementadas. Preserve tudo o que estiver correto e funcional.
+
+Implemente as alterações de forma incremental, modular e compatível com a arquitetura existente.
+
+
+1. CONTEXTO DO SISTEMA
+
+O sistema será utilizado em um único computador Windows e se comunicará futuramente com um único relógio biométrico:
+
+RWTECH PointLine BIOPROX-C (960)
+
+O relógio está conectado à rede local por cabo Ethernet RJ-45.
+
+O relógio é responsável por:
+
+- Ler a impressão digital;
+- Reconhecer o funcionário;
+- Associar a digital a um identificador interno ou matrícula;
+- Registrar data e horário;
+- Manter os registros originais em sua memória.
+
+O software não realizará reconhecimento biométrico.
+
+O software deverá apenas:
+
+- Receber ou importar as marcações do relógio;
+- Relacionar o identificador recebido ao funcionário;
+- Preservar o registro bruto;
+- Classificar as marcações;
+- Calcular jornadas;
+- Calcular horas trabalhadas;
+- Calcular horas extras;
+- Emitir alertas;
+- Gerar relatórios;
+- Permitir ajustes com auditoria.
+
+O programa se enquadra funcionalmente como um sistema de tratamento dos registros produzidos pelo relógio. O dado bruto vindo do equipamento deve permanecer imutável, enquanto ajustes, classificações e cálculos devem existir em uma camada separada.
+
+
+2. TECNOLOGIAS OBRIGATÓRIAS
+
+Continuar utilizando:
+
+- Python 3.13+
+- PySide6
+- SQLite
+- SQLAlchemy ORM
+
+Não utilizar Qt Designer.
+
+A interface gráfica deve continuar sendo criada integralmente em Python.
+
+Não misturar PySide6 com PyQt6.
+
+Utilizar:
+
+- Type hints;
+- Dataclasses quando apropriado;
+- Enums;
+- Docstrings;
+- Logging;
+- Tratamento explícito de exceções;
+- Injeção de dependência simples;
+- Separação de responsabilidades;
+- Testes unitários para regras de negócio.
+
+
+3. PRINCÍPIO ARQUITETURAL MAIS IMPORTANTE
+
+A principal mudança será separar completamente:
+
+DADO BRUTO
+
+de:
+
+DADO CALCULADO
+
+O sistema não deverá mais tratar uma marcação importada como entrada ou saída no momento em que ela for salva.
+
+O fluxo correto será:
+
+Relógio ou importação
+        ↓
+Marcação bruta imutável
+        ↓
+Motor de apuração
+        ↓
+Classificação
+        ↓
+Jornada diária
+        ↓
+Horas trabalhadas
+        ↓
+Horas extras
+        ↓
+Alertas
+
+Nunca alterar ou excluir silenciosamente uma marcação original.
+
+Separar claramente tabelas de marcações brutas, apurações calculadas e ajustes manuais com auditoria.
+
+
+4. ANÁLISE PRÉVIA OBRIGATÓRIA
+
+Antes de editar qualquer arquivo:
+
+1. Inspecione toda a estrutura do projeto.
+2. Identifique os modelos já existentes.
+3. Identifique onde as marcações estão sendo armazenadas.
+4. Identifique onde a classificação entrada/saída está sendo realizada.
+5. Identifique como o cálculo da carga horária funciona atualmente.
+6. Identifique como as configurações estão sendo salvas.
+7. Identifique as telas existentes.
+8. Identifique o sistema de login.
+9. Identifique os serviços e repositórios.
+10. Identifique se já existem migrations ou criação automática de tabelas.
+11. Identifique o mecanismo de logs.
+12. Identifique os testes existentes.
+
+Depois da análise, apresente um resumo curto das mudanças necessárias e somente então faça a implementação.
+
+Não interrompa o trabalho para pedir confirmação, salvo se existir uma incompatibilidade técnica real que impeça a execução.
+
+
+5. ESTRUTURA DE MÓDULOS
+
+Adapte a estrutura existente para refletir, no mínimo, os seguintes componentes:
+
+app/
+├── core/
+│   ├── configuracoes.py
+│   ├── constantes.py
+│   ├── enums.py
+│   ├── exceptions.py
+│   └── logging_config.py
+│
+├── database/
+│   ├── connection.py
+│   ├── migrations.py
+│   └── models/
+│
+├── repositories/
+│   ├── funcionario_repository.py
+│   ├── marcacao_bruta_repository.py
+│   ├── jornada_repository.py
+│   ├── apuracao_repository.py
+│   ├── ajuste_repository.py
+│   ├── alerta_repository.py
+│   ├── sincronizacao_repository.py
+│   └── configuracao_repository.py
+│
+├── services/
+│   ├── funcionario_service.py
+│   ├── importacao_service.py
+│   ├── motor_apuracao_service.py
+│   ├── jornada_service.py
+│   ├── carga_horaria_service.py
+│   ├── horas_extras_service.py
+│   ├── ajuste_service.py
+│   ├── alerta_service.py
+│   ├── sincronizacao_service.py
+│   ├── backup_service.py
+│   └── auditoria_service.py
+│
+├── integrations/
+│   └── rwtech/
+│       ├── gateway.py
+│       ├── client.py
+│       ├── modelos.py
+│       ├── parser.py
+│       ├── exceptions.py
+│       └── mock_gateway.py
+│
+├── ui/
+│   ├── dashboard/
+│   ├── funcionarios/
+│   ├── marcacoes/
+│   ├── jornadas/
+│   ├── carga_horaria/
+│   ├── sincronizacao/
+│   ├── alertas/
+│   ├── configuracoes/
+│   ├── logs/
+│   └── componentes/
+│
+└── tests/
+
+Não precisa reproduzir exatamente essa estrutura caso o projeto atual já tenha uma organização equivalente. O importante é manter as responsabilidades separadas.
+
+
+6. NOVO MODELO DE MARCAÇÕES BRUTAS
+
+Criar ou adaptar uma entidade chamada:
+
+MarcacaoBruta
+
+Ela representa exatamente o dado recebido do relógio ou importado de um arquivo.
+
+Campos sugeridos:
+
+- id
+- nsr
+- equipamento_id
+- funcionario_id
+- codigo_funcionario_relogio
+- data_hora_marcacao
+- metodo_identificacao
+- origem
+- codigo_original
+- dados_brutos
+- hash_integridade
+- importado_em
+- arquivo_origem
+- layout_origem
+- ativo
+
+Regras:
+
+- nsr deve ser preparado para armazenar o número sequencial do relógio, quando disponível;
+- data_hora_marcacao é o horário original;
+- importado_em é o horário em que o nosso software recebeu o registro;
+- origem poderá ser:
+  - RELOGIO;
+  - AFD;
+  - IMPORTACAO_MANUAL;
+  - MOCK;
+- dados_brutos pode armazenar a linha original ou um JSON serializado;
+- hash_integridade será utilizado para evitar duplicidades;
+- o registro bruto não deve conter ENTRADA ou SAIDA como classificação definitiva;
+- o dado original não deve ser alterado por ajustes de jornada.
+
+Criar índice único ou regra equivalente para impedir duplicidade.
+
+A chave deve preferir, nesta ordem:
+
+equipamento + NSR
+
+Quando o NSR não estiver disponível:
+
+equipamento
++ código do funcionário
++ data e hora
++ código original
+
+O NSR deve ser tratado como identificador sequencial imutável. O AFD bruto não informa entrada ou saída; essa classificação cabe ao software.
+
+
+7. CAMADA DE APURAÇÃO
+
+Criar uma entidade separada chamada:
+
+ApuracaoMarcacao
+
+Campos sugeridos:
+
+- id
+- marcacao_bruta_id
+- jornada_id
+- tipo_classificado
+- ordem_no_periodo
+- classificada_em
+- origem_classificacao
+- versao_calculo
+- observacao
+
+O campo tipo_classificado deverá utilizar Enum:
+
+class TipoMarcacao(Enum):
+    ENTRADA = "ENTRADA"
+    SAIDA = "SAIDA"
+    NAO_CLASSIFICADA = "NAO_CLASSIFICADA"
+    POSSIVEL_DUPLICIDADE = "POSSIVEL_DUPLICIDADE"
+
+A classificação nunca deve modificar a marcação bruta.
+
+Quando o sistema recalcular um período, ele deverá atualizar ou recriar somente a camada de apuração.
+
+
+8. ENTIDADE JORNADA DIÁRIA
+
+Criar uma entidade:
+
+JornadaDiaria
+
+Ela representará a jornada de um funcionário em um período de trabalho.
+
+Campos sugeridos:
+
+- id
+- funcionario_id
+- data_referencia
+- inicio_periodo
+- fim_periodo
+- carga_prevista_minutos
+- total_trabalhado_minutos
+- total_extra_minutos
+- total_falta_minutos
+- saldo_minutos
+- status
+- calculada_em
+- versao_calculo
+
+Status possíveis:
+
+class StatusJornada(Enum):
+    NAO_INICIADA = "NAO_INICIADA"
+    EM_ANDAMENTO = "EM_ANDAMENTO"
+    CONCLUIDA = "CONCLUIDA"
+    INCOMPLETA = "INCOMPLETA"
+    COM_INCONSISTENCIA = "COM_INCONSISTENCIA"
+    AJUSTADA = "AJUSTADA"
+
+Cada funcionário deverá ter, no máximo, uma jornada por data de referência, salvo se o modelo atual exigir histórico de versões.
+
+
+9. MOTOR DE APURAÇÃO
+
+Criar um serviço central:
+
+MotorApuracaoService
+
+Esse serviço será responsável por:
+
+1. Buscar as marcações brutas do funcionário no período;
+2. Ordená-las por data e hora;
+3. Definir a ordem de cada marcação;
+4. Classificar alternadamente:
+   - primeira marcação: entrada;
+   - segunda: saída;
+   - terceira: entrada;
+   - quarta: saída;
+   - quinta: entrada;
+   - sexta: saída;
+5. Formar pares de entrada e saída;
+6. Calcular a duração de cada par;
+7. Somar o tempo trabalhado;
+8. Comparar com a carga prevista;
+9. Calcular horas extras;
+10. Detectar jornada em aberto;
+11. Gerar alertas;
+12. Persistir a apuração;
+13. Registrar logs do processamento.
+
+Regra básica:
+
+tipo = (
+    TipoMarcacao.ENTRADA
+    if ordem_no_periodo % 2 == 1
+    else TipoMarcacao.SAIDA
+)
+
+Exemplo:
+
+07:58 → ENTRADA
+12:01 → SAÍDA
+13:00 → ENTRADA
+18:05 → SAÍDA
+
+Cálculo:
+
+07:58 até 12:01
++
+13:00 até 18:05
+=
+total trabalhado
+
+Caso exista uma quantidade ímpar de marcações:
+
+07:58 → ENTRADA
+12:01 → SAÍDA
+13:00 → ENTRADA
+
+A jornada deverá ser marcada como:
+
+EM_ANDAMENTO
+
+ou:
+
+INCOMPLETA
+
+dependendo de o período ainda estar aberto ou já ter encerrado.
+
+Não inventar uma saída automática.
+
+
+10. PERÍODO DIÁRIO E HORÁRIO DE CORTE
+
+Não utilizar apenas a mudança da data civil como regra rígida.
+
+Criar na tela de configurações um campo:
+
+Horário de início do período de apuração
+
+Valor padrão:
+
+00:00
+
+Esse campo define quando começa um novo ciclo de classificação.
+
+Exemplo:
+
+Horário de corte: 04:00
+
+O período referente ao dia 10 será:
+
+10/08 às 04:00
+até
+11/08 às 03:59:59
+
+Como atualmente não existem funcionários que atravessam a madrugada, o valor padrão pode permanecer 00:00.
+
+A primeira marcação dentro de cada período será uma entrada.
+
+
+11. CADASTRO DE FUNCIONÁRIOS
+
+Adaptar o cadastro para conter:
+
+- id
+- matricula
+- codigo_relogio
+- nome_completo
+- cpf
+- pis_pasep
+- cargo
+- setor
+- data_admissao
+- data_desligamento
+- carga_horaria_diaria_minutos
+- carga_horaria_semanal_minutos
+- carga_horaria_mensal_minutos
+- limite_horas_extras_minutos
+- ativo
+- biometria_cadastrada
+- data_cadastro_biometria
+
+Regras:
+
+- codigo_relogio representa o identificador interno utilizado pelo equipamento;
+- não armazenar imagem da digital;
+- não armazenar template biométrico;
+- apenas registrar o vínculo entre o funcionário e o código do relógio;
+- CPF deve possuir validação;
+- matrícula deve ser única;
+- código do relógio deve ser único;
+- funcionário com histórico de marcação não deve ser excluído fisicamente;
+- utilizar inativação e data de desligamento.
+
+O template biométrico deve permanecer no relógio. O software armazena apenas o vínculo entre o ID interno e o funcionário.
+
+
+12. CONFIGURAÇÃO DE CARGA HORÁRIA
+
+Mesmo que hoje todos os funcionários tenham a mesma jornada, manter a configuração individual no cadastro.
+
+Criar também uma configuração padrão da empresa:
+
+- carga_horaria_diaria_padrao
+- carga_horaria_semanal_padrao
+- carga_horaria_mensal_padrao
+
+Ao cadastrar um funcionário, carregar automaticamente os valores padrão, mas permitir alteração individual.
+
+Armazenar durações em minutos inteiros.
+
+Não armazenar horas como ponto flutuante.
+
+Exemplo correto:
+
+8 horas = 480 minutos
+
+
+13. CONTROLE DE HORAS EXTRAS
+
+Criar ou adaptar a aba:
+
+Configurações → Controle de carga horária
+
+Permitir selecionar:
+
+class ModoControleHoraExtra(Enum):
+    DIARIO = "DIARIO"
+    SEMANAL = "SEMANAL"
+    MENSAL = "MENSAL"
+    ACUMULADO = "ACUMULADO"
+
+O gestor poderá informar um limite em horas e minutos.
+
+Exemplos:
+
+Limite mensal: 15h00
+
+ou:
+
+Limite acumulado: 15h00
+
+No modo acumulado, o limite não será reiniciado automaticamente por mês.
+
+Criar estrutura para movimentações do saldo:
+
+MovimentacaoBancoHoras
+
+Campos sugeridos:
+
+- id
+- funcionario_id
+- tipo
+- quantidade_minutos
+- data_hora
+- descricao
+- usuario_id
+- jornada_id
+
+Tipos:
+
+- CREDITO
+- DEBITO
+- COMPENSACAO
+- PAGAMENTO
+- AJUSTE
+
+
+14. ALERTAS DE HORAS EXTRAS
+
+Criar um serviço:
+
+AlertaService
+
+Criar níveis:
+
+class NivelAlerta(Enum):
+    INFORMACAO = "INFORMACAO"
+    ATENCAO = "ATENCAO"
+    LIMITE_ATINGIDO = "LIMITE_ATINGIDO"
+    LIMITE_EXCEDIDO = "LIMITE_EXCEDIDO"
+    ERRO = "ERRO"
+
+Regras padrão:
+
+- Abaixo de 80% → normal
+- A partir de 80% → atenção
+- A partir de 100% → limite atingido
+- Acima de 100% → limite excedido
+
+Permitir configurar o percentual de atenção.
+
+O alerta deve:
+
+- Ser salvo no banco;
+- Aparecer no dashboard;
+- Aparecer na tela de carga horária;
+- Aparecer na tela do funcionário;
+- Ser gerado somente quando houver mudança relevante de faixa;
+- Não abrir dezenas de janelas repetidas;
+- Poder ser marcado como lido;
+- Manter histórico.
+
+Criar entidade:
+
+Alerta
+
+Campos:
+
+- id
+- funcionario_id
+- tipo
+- nivel
+- titulo
+- mensagem
+- valor_atual_minutos
+- limite_minutos
+- percentual
+- criado_em
+- lido
+- lido_em
+- usuario_leitura_id
+
+
+15. AJUSTES MANUAIS E AUDITORIA
+
+Criar ou adaptar a funcionalidade de ajustes.
+
+Nunca modificar diretamente uma marcação bruta.
+
+Caso o gestor precise corrigir uma jornada, criar:
+
+AjusteManual
+
+Campos:
+
+- id
+- funcionario_id
+- jornada_id
+- marcacao_bruta_id
+- tipo_ajuste
+- valor_anterior
+- valor_novo
+- justificativa
+- usuario_id
+- criado_em
+
+A justificativa será obrigatória.
+
+Tipos possíveis:
+
+- INCLUSAO_MARCACAO
+- DESCONSIDERACAO
+- ALTERACAO_CLASSIFICACAO
+- ABONO
+- COMPENSACAO
+- CORRECAO_CARGA
+- OUTRO
+
+A marcação original continua armazenada.
+
+A apuração deve considerar os ajustes, mas deve permitir visualizar claramente:
+
+- Registro original
+- Registro ajustado
+- Usuário responsável
+- Data do ajuste
+- Justificativa
+
+Ajustes, abonos e compensações devem possuir trilha de auditoria e nunca sobrescrever o dado bruto.
+
+
+16. TELA DE MARCAÇÕES
+
+Atualizar a tela para separar visualmente:
+
+Marcações brutas
+
+e:
+
+Marcações classificadas
+
+A tabela deverá mostrar:
+
+- Data/hora
+- Funcionário
+- Matrícula
+- Código do relógio
+- NSR
+- Origem
+- Classificação
+- Ordem
+- Jornada
+- Status
+- Possível inconsistência
+
+Adicionar filtros:
+
+- Funcionário;
+- Data inicial;
+- Data final;
+- Origem;
+- Status;
+- Tipo classificado;
+- Somente inconsistências.
+
+Ao selecionar um registro, abrir detalhes contendo:
+
+- Dados originais
+- Dados brutos
+- Hash
+- Data da importação
+- Classificação atual
+- Histórico de ajustes
+
+
+17. TELA DE JORNADAS
+
+Criar uma tela específica:
+
+Jornadas
+
+Mostrar por funcionário e data:
+
+- Data
+- Funcionário
+- Primeira entrada
+- Última saída
+- Quantidade de marcações
+- Carga prevista
+- Total trabalhado
+- Horas extras
+- Saldo
+- Status
+- Alertas
+
+Ao abrir uma jornada, mostrar:
+
+07:58 → Entrada
+12:01 → Saída
+13:00 → Entrada
+18:05 → Saída
+
+E abaixo:
+
+Período 1: 4h03
+Período 2: 5h05
+Total: 9h08
+Carga prevista: 8h00
+Hora extra: 1h08
+
+Também mostrar:
+
+- Marcações brutas associadas;
+- Ajustes;
+- Alertas;
+- Observações;
+- Botão de recalcular;
+- Botão de registrar ajuste.
+
+
+18. DASHBOARD OPERACIONAL
+
+Atualizar o dashboard para funcionar como painel operacional.
+
+Criar cartões para:
+
+- Status do relógio
+- Última sincronização
+- Última marcação recebida
+- Funcionários ativos
+- Funcionários presentes
+- Funcionários ausentes
+- Jornadas em andamento
+- Jornadas incompletas
+- Horas extras no período
+- Funcionários próximos do limite
+- Alertas não lidos
+- Status do banco de dados
+- Último backup
+
+Status do relógio:
+
+- ONLINE
+- OFFLINE
+- NÃO CONFIGURADO
+- ERRO
+
+Como a integração real ainda não existe, utilizar valores simulados ou estado:
+
+NÃO CONFIGURADO
+
+Não exibir informação falsa de conexão.
+
+
+19. TELA DE SINCRONIZAÇÃO
+
+Criar uma tela específica, mesmo que inicialmente use um gateway simulado.
+
+Campos:
+
+- Modelo do relógio
+- IP
+- Porta
+- Status
+- Última tentativa
+- Última sincronização bem-sucedida
+- Último registro recebido
+- Registros encontrados
+- Registros novos
+- Registros duplicados
+- Falhas consecutivas
+- Tempo de resposta
+
+Botões:
+
+- Testar conexão
+- Sincronizar agora
+- Importar arquivo AFD
+- Ver logs
+
+Enquanto a integração real não estiver pronta:
+
+- Testar conexão deve informar que o módulo RWTECH ainda não está configurado;
+- Sincronizar agora pode utilizar um MockRwtechGateway;
+- não inventar uma conexão TCP;
+- não utilizar protocolo presumido;
+- não tentar carregar DLL inexistente.
+
+
+20. GATEWAY RWTECH
+
+Criar uma interface abstrata:
+
+class RelogioPontoGateway(ABC):
+    @abstractmethod
+    def testar_conexao(self) -> StatusConexao:
+        ...
+
+    @abstractmethod
+    def buscar_marcacoes(
+        self,
+        inicio: datetime | None = None,
+        fim: datetime | None = None,
+    ) -> list[RegistroRelogio]:
+        ...
+
+    @abstractmethod
+    def obter_informacoes(self) -> InformacoesRelogio:
+        ...
+
+Criar:
+
+MockRwtechGateway
+
+Ele será utilizado para testes e desenvolvimento.
+
+O mock deverá permitir gerar registros simulados contendo:
+
+- NSR
+- Código do funcionário
+- Data e hora
+- Método de identificação
+- Código original
+
+Não implementar ainda:
+
+- authtelcom.dll;
+- SFM_SDK.dll;
+- comunicação TCP real;
+- engenharia reversa;
+- worker 32 bits.
+
+Apenas deixar o ponto de extensão bem definido.
+
+A integração real pode depender de DLLs Windows de 32 bits e poderá exigir um processo separado.
+
+
+21. IMPORTAÇÃO DE AFD — ESTRUTURA INICIAL
+
+Criar a arquitetura para importação de AFD, mas não implementar todos os layouts legais neste momento.
+
+Criar:
+
+AfdParser
+
+e:
+
+AfdImportService
+
+Nesta etapa:
+
+- Criar interfaces;
+- Criar validação básica de arquivo;
+- Criar estrutura de resultado de importação;
+- Criar tela para selecionar arquivo;
+- Criar logs da importação;
+- Preparar suporte a layouts diferentes.
+
+Não implementar ainda suporte completo a:
+
+- Portaria 1.510;
+- Portaria 671 com PIS;
+- Portaria 671 com CPF;
+- CRC-16 completo;
+- AEJ;
+- assinatura digital.
+
+Utilizar Enum:
+
+class LayoutAfd(Enum):
+    AUTO = "AUTO"
+    PORTARIA_1510 = "PORTARIA_1510"
+    PORTARIA_671_PIS = "PORTARIA_671_PIS"
+    PORTARIA_671_CPF = "PORTARIA_671_CPF"
+
+Deixar a implementação real preparada para uma fase futura.
+
+
+22. BACKUP DO SQLITE
+
+Implementar backup local funcional.
+
+Criar:
+
+BackupService
+
+Funções:
+
+- Backup manual;
+- Backup ao fechar o programa;
+- Backup diário;
+- Retenção configurável;
+- Nome com data e hora;
+- Validação da cópia;
+- Log da operação.
+
+Exemplo:
+
+controle_ponto_2026-08-05_18-30-00.db
+
+Nunca copiar o arquivo de forma insegura durante uma transação ativa.
+
+Utilizar mecanismo seguro do SQLite, como a API de backup da conexão.
+
+Adicionar tela de configuração:
+
+- Backup automático ativado
+- Pasta de destino
+- Quantidade de backups mantidos
+- Backup ao encerrar
+
+
+23. LOGS E AUDITORIA
+
+Separar:
+
+Log técnico
+
+de:
+
+Log de auditoria
+
+Log técnico:
+
+- Inicialização;
+- Banco;
+- Erros;
+- Importação;
+- Sincronização;
+- Cálculos;
+- Backup;
+- Encerramento.
+
+Auditoria:
+
+- Login;
+- Alteração de funcionário;
+- Inativação;
+- Ajuste de jornada;
+- Alteração de configuração;
+- Leitura de alerta;
+- Reprocessamento de jornada.
+
+Criar entidade:
+
+Auditoria
+
+Campos:
+
+- id
+- usuario_id
+- acao
+- entidade
+- entidade_id
+- valor_anterior
+- valor_novo
+- data_hora
+- descricao
+
+
+24. LOGIN E SEGURANÇA
+
+Manter inicialmente:
+
+Login: 001
+Senha: 01
+
+A senha deve continuar armazenada com hash seguro.
+
+Nunca armazenar senha em texto puro.
+
+Caso ainda não exista, utilizar biblioteca adequada para hash, preferencialmente:
+
+argon2-cffi
+
+ou:
+
+bcrypt
+
+Não criar criptografia própria.
+
+Preparar perfis:
+
+class PerfilUsuario(Enum):
+    ADMINISTRADOR = "ADMINISTRADOR"
+    GESTOR = "GESTOR"
+    CONSULTA = "CONSULTA"
+
+Mesmo que inicialmente exista apenas um usuário administrador.
+
+
+25. TRATAMENTO DE POSSÍVEIS DUPLICIDADES
+
+Ainda não existe uma regra de negócio definitiva para batidas muito próximas.
+
+Portanto:
+
+- Não descartar automaticamente;
+- Não excluir;
+- Não ignorar;
+- Armazenar a marcação bruta;
+- Marcar como possível duplicidade;
+- Exibir alerta para revisão.
+
+Criar configuração:
+
+intervalo_suspeita_duplicidade_segundos
+
+Valor inicial:
+
+30
+
+Esse valor servirá apenas para sinalizar.
+
+Exemplo:
+
+08:00:03
+08:00:08
+
+A segunda marcação poderá receber:
+
+POSSIVEL_DUPLICIDADE
+
+Mas continuará no banco.
+
+Essa regra deverá ser facilmente alterada no futuro.
+
+
+26. REPROCESSAMENTO
+
+Criar capacidade de recalcular:
+
+- Uma jornada;
+- Um funcionário em determinado período;
+- Todas as jornadas de um período.
+
+O reprocessamento poderá ser necessário após:
+
+- Mudança de carga horária;
+- Alteração do horário de corte;
+- Ajuste manual;
+- Mudança de limite;
+- Correção de funcionário;
+- Importação de marcação antiga.
+
+Sempre registrar auditoria.
+
+Nunca alterar a marcação bruta.
+
+
+27. TESTES OBRIGATÓRIOS
+
+Criar testes unitários para o motor de apuração.
+
+Cenário 1 — jornada completa
+
+08:00
+12:00
+13:00
+17:00
+
+Resultado:
+
+8 horas trabalhadas
+0 hora extra
+Jornada concluída
+
+Cenário 2 — hora extra
+
+08:00
+12:00
+13:00
+18:30
+
+Carga prevista:
+
+8 horas
+
+Resultado:
+
+9h30 trabalhadas
+1h30 extras
+
+Cenário 3 — jornada aberta
+
+08:00
+12:00
+13:00
+
+Resultado:
+
+Jornada em andamento ou incompleta
+
+Cenário 4 — seis marcações
+
+08:00
+10:00
+10:15
+12:00
+13:00
+17:00
+
+Resultado:
+
+Entrada
+Saída
+Entrada
+Saída
+Entrada
+Saída
+
+Somar os três períodos corretamente.
+
+Cenário 5 — marcações fora de ordem de importação
+
+Persistir em ordem aleatória e apurar por data/hora.
+
+Cenário 6 — duplicidade exata
+
+Duas importações do mesmo NSR.
+
+Resultado:
+
+Somente uma marcação bruta salva.
+
+Cenário 7 — possível duplicidade
+
+Duas marcações diferentes com diferença de cinco segundos.
+
+Resultado:
+
+As duas salvas.
+Uma sinalizada para revisão.
+
+Cenário 8 — horário de corte
+
+Configuração:
+
+04:00
+
+Validar a atribuição correta da data de referência.
+
+Cenário 9 — limite mensal
+
+Validar alerta em 80%, 100% e acima de 100%.
+
+Cenário 10 — ajuste manual
+
+Validar que o dado bruto não foi alterado.
+
+
+28. MIGRAÇÃO DO BANCO EXISTENTE
+
+Não apagar o banco atual.
+
+Criar uma migration segura.
+
+Caso exista uma tabela antiga chamada marcacoes:
+
+1. Criar as novas tabelas;
+2. Migrar os registros antigos para marcacoes_brutas;
+3. Preservar IDs quando possível;
+4. Criar apurações correspondentes;
+5. Criar backup antes da migration;
+6. Registrar resultado no log;
+7. Implementar rollback em caso de erro.
+
+Nunca executar DROP TABLE diretamente sem backup e validação.
+
+
+29. ITENS QUE NÃO DEVEM SER IMPLEMENTADOS AGORA
+
+Não implementar nesta etapa:
+
+- Integração real com authtelcom.dll;
+- Integração real com SFM_SDK.dll;
+- Worker Windows de 32 bits;
+- Engenharia reversa do protocolo;
+- Comunicação TCP presumida;
+- Sincronização real com o relógio;
+- Geração de AEJ;
+- Assinatura ICP-Brasil;
+- PKCS#7;
+- Certificado digital;
+- Parser completo de todos os layouts AFD;
+- CRC-16 completo;
+- Portal do funcionário;
+- Aplicativo Android;
+- Sistema web;
+- PostgreSQL;
+- Múltiplos relógios;
+- Múltiplas filiais;
+- Integração com folha de pagamento;
+- Armazenamento de imagem ou template biométrico.
+
+Esses recursos devem apenas ter pontos de extensão quando necessário, sem aumentar desnecessariamente a complexidade atual.
+
+
+30. PADRÃO VISUAL
+
+Manter a identidade visual já existente no projeto.
+
+A interface deverá permanecer:
+
+- Moderna;
+- Escura;
+- Profissional;
+- Clara;
+- Responsiva dentro da janela desktop;
+- Com menu lateral;
+- Barra superior;
+- Barra de status;
+- Cards no dashboard;
+- Tabelas com filtros;
+- Mensagens de erro compreensíveis.
+
+Não reescrever toda a interface se a atual estiver funcionando corretamente.
+
+
+31. MAIN.PY
+
+O main.py deve continuar sendo apenas o ponto de inicialização.
+
+Exemplo esperado:
+
+def main() -> int:
+    configurar_logs()
+    inicializar_banco()
+    executar_migrations()
+    criar_backup_se_necessario()
+    iniciar_aplicacao()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+
+Não colocar nele:
+
+- SQL;
+- Regras de cálculo;
+- Widgets;
+- Comunicação com relógio;
+- Repositórios;
+- Regras de autenticação;
+- Código de backup detalhado.
+
+
+32. ORDEM DE IMPLEMENTAÇÃO
+
+Implemente nesta ordem:
+
+Etapa 1
+
+- Inspeção do projeto;
+- Backup;
+- Models;
+- Enums;
+- Migration;
+- Repositórios.
+
+Etapa 2
+
+- Marcações brutas;
+- Jornadas;
+- Apuração;
+- Motor de cálculo;
+- Testes unitários.
+
+Etapa 3
+
+- Horas extras;
+- Limites;
+- Alertas;
+- Banco de horas.
+
+Etapa 4
+
+- Ajustes manuais;
+- Auditoria;
+- Reprocessamento.
+
+Etapa 5
+
+- Tela de marcações;
+- Tela de jornadas;
+- Tela de carga horária;
+- Central de alertas.
+
+Etapa 6
+
+- Dashboard operacional;
+- Tela de sincronização;
+- Mock RWTECH;
+- Estrutura de AFD.
+
+Etapa 7
+
+- Backup automático;
+- Logs;
+- Revisão;
+- Testes finais.
+
+Após cada etapa:
+
+- Execute os testes;
+- Corrija os erros;
+- Verifique imports;
+- Verifique migrations;
+- Verifique se a aplicação inicia;
+- Não deixe arquivos quebrados;
+- Não deixe métodos vazios sem documentação;
+- Não deixe código morto.
+
+
+33. ENTREGA FINAL
+
+Ao concluir, apresente:
+
+1. Resumo dos arquivos criados;
+2. Resumo dos arquivos modificados;
+3. Mudanças no banco;
+4. Regras implementadas;
+5. Testes criados;
+6. Comando para instalar dependências;
+7. Comando para executar a aplicação;
+8. Comando para executar os testes;
+9. Pendências futuras;
+10. Riscos técnicos encontrados.
+
+Também informe claramente se alguma parte não pôde ser concluída.
+
+Não afirmar que algo funciona sem executar e validar.
+
+
+RESULTADO ESPERADO
+
+Ao final, o sistema deverá possuir:
+
+Cadastro de funcionários
+        ↓
+Marcação bruta imutável
+        ↓
+Motor de apuração
+        ↓
+Jornada diária
+        ↓
+Carga horária
+        ↓
+Horas extras
+        ↓
+Alertas
+        ↓
+Ajustes auditáveis
+        ↓
+Dashboard e relatórios
+
+A integração real com o relógio ficará para uma fase posterior, mas o sistema deverá estar completamente preparado para receber os registros por meio de um gateway RWTECH sem necessidade de reestruturar o restante da aplicação.

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from sqlalchemy import and_, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models import Employee, Punch
 
@@ -29,6 +29,19 @@ class EmployeeRepository:
             .where(and_(Punch.funcionario_id == employee_id, Punch.data_hora >= start, Punch.data_hora < end))
             .order_by(Punch.data_hora)
         )
+        return list(session.scalars(query))
+
+    def list_punches(self, session: Session, start, end, search: str = "") -> list[Punch]:
+        query = (
+            select(Punch)
+            .options(joinedload(Punch.employee))
+            .join(Punch.employee)
+            .where(Punch.data_hora >= start, Punch.data_hora < end)
+            .order_by(Punch.data_hora.desc())
+        )
+        if search:
+            term = f"%{search}%"
+            query = query.where(or_(Employee.nome.ilike(term), Employee.matricula.ilike(term)))
         return list(session.scalars(query))
 
     def save(self, session: Session, employee: Employee) -> Employee:

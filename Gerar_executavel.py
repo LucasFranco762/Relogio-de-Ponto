@@ -56,7 +56,7 @@ def main() -> int:
         *(_data_argument(PROJECT_ROOT / "Icone.png")),
     ]
 
-    for optional_file in ("config.json", "logo.png", "logomarca.png"):
+    for optional_file in ("Config.json", "config.json", "logo.png", "logomarca.png"):
         path = PROJECT_ROOT / optional_file
         if path.is_file():
             command.extend(_data_argument(path))

@@ -20,13 +20,15 @@ from app.utils.logging_config import configure_logging
 from app.utils.cursor import ClickCursorFilter
 from app.utils.resources import resource_path
 from app.utils.theme import THEME
+from app.utils.table_columns import TableColumnSettings
+from app.utils.backup import BackupService
 
 
 class Application:
     """Orquestra inicialização, autenticação e janela principal."""
 
-    def __init__(self, qt_app: QApplication, database: Database, auth: AuthenticationService, employees: EmployeeService, logger: logging.Logger) -> None:
-        self.qt_app, self.database, self.auth, self.employees, self.logger = qt_app, database, auth, employees, logger
+    def __init__(self, qt_app: QApplication, database: Database, auth: AuthenticationService, employees: EmployeeService, logger: logging.Logger, column_settings: TableColumnSettings, backup_service: BackupService) -> None:
+        self.qt_app, self.database, self.auth, self.employees, self.logger, self.column_settings, self.backup_service = qt_app, database, auth, employees, logger, column_settings, backup_service
 
     def run(self) -> int:
         self.logger.info("Inicialização do sistema")
@@ -36,8 +38,8 @@ class Application:
             self.logger.info("Aplicação fechada na tela de login")
             return 0
         self.logger.info("Login realizado: %s", login.user.login)
-        window = MainWindow(self.employees, SettingsService(self.database), self.auth, login.user.id, login.user.nome); window.showMaximized()
-        result = self.qt_app.exec(); self.logger.info("Fechamento do sistema"); return result
+        window = MainWindow(self.employees, SettingsService(self.database), self.auth, login.user.id, login.user.nome, self.column_settings, self.database); window.showMaximized()
+        result = self.qt_app.exec(); self.backup_service.execute(); self.logger.info("Fechamento do sistema"); return result
 
 
 def create_application(root: Path | None = None) -> Application:
@@ -49,9 +51,12 @@ def create_application(root: Path | None = None) -> Application:
     )
     settings = Settings.from_root(project_root)
     logger = configure_logging(project_root / "app" / "logs")
-    database = Database(settings.database_url); database.initialize()
+    database = Database(settings.database_url)
+    backup_service = BackupService(database, project_root / "app" / "backups")
+    backup_service.execute()
+    database.initialize()
     auth = AuthenticationService(database, PasswordHasher())
     employees = EmployeeService(database, EmployeeRepository())
     qt_app = QApplication([]); qt_app.setApplicationName(settings.app_name); qt_app.setWindowIcon(QIcon(str(resource_path("Icone.png")))); qt_app.setStyleSheet(THEME)
     qt_app.installEventFilter(ClickCursorFilter(qt_app))
-    return Application(qt_app, database, auth, employees, logger)
+    return Application(qt_app, database, auth, employees, logger, TableColumnSettings(settings.config_path), backup_service)

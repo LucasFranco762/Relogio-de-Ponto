@@ -1,0 +1,59 @@
+"""Enums compartilhados pelas regras de negócio do controle de ponto."""
+
+from enum import StrEnum
+
+
+class TipoMarcacao(StrEnum):
+    ENTRADA = "ENTRADA"
+    SAIDA = "SAIDA"
+    NAO_CLASSIFICADA = "NAO_CLASSIFICADA"
+    POSSIVEL_DUPLICIDADE = "POSSIVEL_DUPLICIDADE"
+
+
+class StatusJornada(StrEnum):
+    NAO_INICIADA = "NAO_INICIADA"
+    EM_ANDAMENTO = "EM_ANDAMENTO"
+    CONCLUIDA = "CONCLUIDA"
+    INCOMPLETA = "INCOMPLETA"
+    COM_INCONSISTENCIA = "COM_INCONSISTENCIA"
+    AJUSTADA = "AJUSTADA"
+
+
+class OrigemMarcacao(StrEnum):
+    RELOGIO = "RELOGIO"
+    AFD = "AFD"
+    IMPORTACAO_MANUAL = "IMPORTACAO_MANUAL"
+    MOCK = "MOCK"
+
+
+class ModoControleHoraExtra(StrEnum):
+    DIARIO = "DIARIO"
+    SEMANAL = "SEMANAL"
+    MENSAL = "MENSAL"
+    ACUMULADO = "ACUMULADO"
+
+
+class NivelAlerta(StrEnum):
+    INFORMACAO = "INFORMACAO"
+    ATENCAO = "ATENCAO"
+    LIMITE_ATINGIDO = "LIMITE_ATINGIDO"
+    LIMITE_EXCEDIDO = "LIMITE_EXCEDIDO"
+    ERRO = "ERRO"
+
+
+class TipoAjuste(StrEnum):
+    INCLUSAO_MARCACAO = "INCLUSAO_MARCACAO"
+    DESCONSIDERACAO = "DESCONSIDERACAO"
+    ALTERACAO_CLASSIFICACAO = "ALTERACAO_CLASSIFICACAO"
+    ABONO = "ABONO"
+    COMPENSACAO = "COMPENSACAO"
+    CORRECAO_CARGA = "CORRECAO_CARGA"
+    OUTRO = "OUTRO"
+
+
+class TipoMovimentacaoBanco(StrEnum):
+    CREDITO = "CREDITO"
+    DEBITO = "DEBITO"
+    COMPENSACAO = "COMPENSACAO"
+    PAGAMENTO = "PAGAMENTO"
+    AJUSTE = "AJUSTE"

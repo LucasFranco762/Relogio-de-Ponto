@@ -88,11 +88,11 @@ class SettingsPage(QWidget):
         layout = QVBoxLayout(self); title = QLabel("Configurações"); title.setStyleSheet("font-size: 22pt; font-weight: 600;"); layout.addWidget(title)
         self.tabs = QTabWidget(); general_tab = QWidget(); general_layout = QVBoxLayout(general_tab); self.tabs.addTab(general_tab, "Geral")
         self.tabs.addTab(self._build_layout_tab(), "Layout"); layout.addWidget(self.tabs)
-        form = QFormLayout(); self.company = QLineEdit(); self.start = SettingsTimeEdit(); self.end = SettingsTimeEdit(); self.limit = SettingsSpinBox(); self.limit.setRange(0, 24); self.mode = QComboBox(); self.mode.addItems(["Mensal", "Acumulado"])
-        for field in (self.company, self.start, self.end, self.limit, self.mode):
+        form = QFormLayout(); self.company = QLineEdit(); self.start = SettingsTimeEdit(); self.end = SettingsTimeEdit(); self.cutoff = SettingsTimeEdit(); self.limit = SettingsSpinBox(); self.limit.setRange(0, 24); self.mode = QComboBox(); self.mode.addItems(["Mensal", "Acumulado"])
+        for field in (self.company, self.start, self.end, self.cutoff, self.limit, self.mode):
             field.setFixedWidth(280); field.setEnabled(True)
         self.company.setReadOnly(False); self.start.setReadOnly(False); self.end.setReadOnly(False); self.limit.setReadOnly(False)
-        form.addRow("Empresa", self.company); form.addRow("Início do expediente", self.start); form.addRow("Fim do expediente", self.end); form.addRow("Limite de horas extras", self.limit); form.addRow("Modo de controle", self.mode); general_layout.addLayout(form)
+        form.addRow("Empresa", self.company); form.addRow("Início do expediente", self.start); form.addRow("Fim do expediente", self.end); form.addRow("Início do período de apuração", self.cutoff); form.addRow("Limite de horas extras", self.limit); form.addRow("Modo de controle", self.mode); general_layout.addLayout(form)
         save = QPushButton("Salvar configurações"); save.setFixedWidth(280); save.clicked.connect(self.save); general_layout.addWidget(save); general_layout.addStretch(); self.load()
 
     def _build_layout_tab(self) -> QWidget:
@@ -128,7 +128,7 @@ class SettingsPage(QWidget):
             application.setStyleSheet(LAYOUT_THEMES[index])
 
     def load(self) -> None:
-        item = self.service.get(); self.company.setText(item.empresa); self.start.setTime(QTime(item.horario_inicio.hour, item.horario_inicio.minute)); self.end.setTime(QTime(item.horario_fim.hour, item.horario_fim.minute)); self.limit.setValue(item.limite_horas_extras); self.mode.setCurrentText(item.modo_controle_horas_extras)
+        item = self.service.get(); self.company.setText(item.empresa); self.start.setTime(QTime(item.horario_inicio.hour, item.horario_inicio.minute)); self.end.setTime(QTime(item.horario_fim.hour, item.horario_fim.minute)); cutoff = item.horario_corte or QTime(0, 0).toPython(); self.cutoff.setTime(QTime(cutoff.hour, cutoff.minute)); self.limit.setValue(item.limite_horas_extras); self.mode.setCurrentText(item.modo_controle_horas_extras)
 
     def save(self) -> None:
-        self.service.save(self.company.text(), self.start.time().toPython(), self.end.time().toPython(), self.mode.currentText(), self.limit.value()); QMessageBox.information(self, "Configurações", "Configurações salvas com sucesso.")
+        self.service.save(self.company.text(), self.start.time().toPython(), self.end.time().toPython(), self.mode.currentText(), self.limit.value(), self.cutoff.time().toPython()); QMessageBox.information(self, "Configurações", "Configurações salvas com sucesso.")

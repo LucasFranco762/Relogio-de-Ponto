@@ -1,0 +1,39 @@
+{
+  "Larguras_Colunas": {
+    "funcionarios_ativos": {
+      "4": 736,
+      "1": 146,
+      "2": 133,
+      "3": 166
+    },
+    "carga_horaria": {
+      "0": 364,
+      "1": 364,
+      "2": 363
+    },
+    "carga_detalhe_diario": {
+      "1": 428
+    },
+    "carga_detalhe_mensal": {
+      "0": 397
+    },
+    "marcacoes": {
+      "4": 255,
+      "0": 162,
+      "1": 158,
+      "2": 132,
+      "3": 136,
+      "5": 137,
+      "6": 114,
+      "7": 53,
+      "9": 99,
+      "10": 139
+    },
+    "usuarios": {
+      "3": 983
+    },
+    "funcionarios_inativos": {
+      "4": 874
+    }
+  }
+}

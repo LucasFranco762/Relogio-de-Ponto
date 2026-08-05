@@ -2,6 +2,7 @@
 
 import hashlib
 import hmac
+import secrets
 
 
 class PasswordHasher:
@@ -10,7 +11,7 @@ class PasswordHasher:
     iterations = 310_000
 
     def hash(self, password: str) -> str:
-        salt = hashlib.sha256(password.encode()).hexdigest()[:32]
+        salt = secrets.token_hex(16)
         digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), self.iterations)
         return f"pbkdf2_sha256${self.iterations}${salt}${digest.hex()}"
 

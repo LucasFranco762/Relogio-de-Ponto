@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.services.employees import EmployeeService
+from app.utils.table_columns import TableColumnSettings
 
 
 LOWERCASE_NAME_WORDS = {
@@ -42,6 +43,20 @@ def title_case_name(value: str) -> str:
             else lowered[:1].upper() + lowered[1:]
         )
     return " ".join(formatted)
+
+
+def valid_cpf(value: str) -> bool:
+    """Valida os dígitos verificadores do CPF quando o campo foi informado."""
+    digits = "".join(character for character in value if character.isdigit())
+    if not digits:
+        return True
+    if len(digits) != 11 or len(set(digits)) == 1:
+        return False
+    first = sum(int(digits[index]) * (10 - index) for index in range(9))
+    check_one = (first * 10 % 11) % 10
+    second = sum(int(digits[index]) * (11 - index) for index in range(10))
+    check_two = (second * 10 % 11) % 10
+    return digits[-2:] == f"{check_one}{check_two}"
 
 
 def confirm_action(parent: QWidget, title: str, message: str) -> bool:
@@ -68,8 +83,10 @@ class NewEmployeeDialog(QDialog):
         self._formatting_name = False
         self.name.textChanged.connect(self._format_name)
         self.registration = QLineEdit()
+        self.clock_code = QLineEdit()
         self.rg = QLineEdit()
         self.cpf = QLineEdit()
+        self.pis_pasep = QLineEdit()
         self.cpf.setInputMask("000.000.000-00;_")
         self.address = QLineEdit()
         self.role = QLineEdit()
@@ -87,8 +104,10 @@ class NewEmployeeDialog(QDialog):
 
         form.addRow("Nome completo", self.name)
         form.addRow("Matrícula", self.registration)
+        form.addRow("Código no relógio", self.clock_code)
         form.addRow("RG", self.rg)
         form.addRow("CPF", self.cpf)
+        form.addRow("PIS/PASEP", self.pis_pasep)
         form.addRow("Endereço", self.address)
         form.addRow("Cargo", self.role)
         form.addRow("Setor", self.department)
@@ -100,8 +119,10 @@ class NewEmployeeDialog(QDialog):
         if self.editing:
             self.name.setText(employee.nome or "")
             self.registration.setText(employee.matricula or "")
+            self.clock_code.setText(employee.codigo_relogio or "")
             self.rg.setText(employee.rg or "")
             self.cpf.setText(employee.cpf or "")
+            self.pis_pasep.setText(employee.pis_pasep or "")
             self.address.setText(employee.endereco or "")
             self.role.setText(employee.cargo or "")
             self.department.setText(employee.setor or "")
@@ -153,14 +174,20 @@ class NewEmployeeDialog(QDialog):
             QMessageBox.warning(self, "Dados obrigatórios", "Informe um valor válido para a carga horária.")
             self.hours_value.setFocus()
             return
+        if not valid_cpf(self.cpf.text()):
+            QMessageBox.warning(self, "CPF inválido", "Informe um CPF válido ou deixe o campo em branco.")
+            self.cpf.setFocus()
+            return
         self.accept()
 
     def employee_data(self) -> dict:
         return {
             "nome": self.name.text().strip(),
             "matricula": self.registration.text().strip(),
+            "codigo_relogio": self.clock_code.text().strip(),
             "rg": self.rg.text().strip(),
             "cpf": self.cpf.text().strip(),
+            "pis_pasep": self.pis_pasep.text().strip(),
             "endereco": self.address.text().strip(),
             "cargo": self.role.text().strip(),
             "setor": self.department.text().strip(),
@@ -173,7 +200,7 @@ class NewEmployeeDialog(QDialog):
 class EmployeesPage(QWidget):
     """Gerencia funcionários ativos e inativos em abas mutuamente exclusivas."""
 
-    def __init__(self, service: EmployeeService) -> None:
+    def __init__(self, service: EmployeeService, column_settings: TableColumnSettings) -> None:
         super().__init__(); self.service = service
         layout = QVBoxLayout(self)
         heading = QHBoxLayout(); heading.addWidget(QLabel("Funcionários"))
@@ -185,8 +212,8 @@ class EmployeesPage(QWidget):
         remove = QPushButton("Excluir"); remove.clicked.connect(self.delete_employee); heading.addWidget(remove)
         layout.addLayout(heading)
         self.tabs = QTabWidget()
-        self.active_table = self._create_table()
-        self.inactive_table = self._create_table()
+        self.active_table = self._create_table(column_settings, "funcionarios_ativos")
+        self.inactive_table = self._create_table(column_settings, "funcionarios_inativos")
         self.tabs.addTab(self.active_table, "Funcionários Ativos")
         self.tabs.addTab(self.inactive_table, "Funcionários Inativos")
         self.tabs.currentChanged.connect(self._update_move_button)
@@ -194,12 +221,13 @@ class EmployeesPage(QWidget):
         self.inactive_table.itemSelectionChanged.connect(self._update_actions)
         layout.addWidget(self.tabs); self._update_move_button(0); self.refresh()
 
-    def _create_table(self) -> QTableWidget:
+    def _create_table(self, column_settings: TableColumnSettings, table_id: str) -> QTableWidget:
         table = QTableWidget(0, 5)
         table.setHorizontalHeaderLabels(["Matrícula", "Nome", "Cargo", "Setor", "Status"])
         table.horizontalHeader().setStretchLastSection(True)
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        column_settings.apply(table, table_id)
         return table
 
     def _update_move_button(self, index: int) -> None:

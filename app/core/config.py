@@ -11,6 +11,7 @@ class Settings:
 
     project_root: Path
     database_url: str
+    config_path: Path
     app_name: str = "Controle de Ponto"
 
     @classmethod
@@ -19,4 +20,4 @@ class Settings:
         # lado do executável, e não dentro do diretório temporário do pacote.
         data_dir = root if getattr(sys, "frozen", False) else root / "app" / "resources"
         data_dir.mkdir(parents=True, exist_ok=True)
-        return cls(root, f"sqlite:///{data_dir / 'controle_ponto.db'}")
+        return cls(root, f"sqlite:///{data_dir / 'controle_ponto.db'}", root / "Config.json")
