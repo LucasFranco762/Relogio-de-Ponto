@@ -1,8 +1,11 @@
 """CRUD visual de funcionários."""
 
+from calendar import monthrange
+
 from PySide6.QtCore import QDate
 from PySide6.QtWidgets import (
     QComboBox,
+    QCheckBox,
     QDateEdit,
     QDialog,
     QDoubleSpinBox,
@@ -59,6 +62,29 @@ def valid_cpf(value: str) -> bool:
     return digits[-2:] == f"{check_one}{check_two}"
 
 
+def _add_months(value, months: int):
+    total = value.year * 12 + value.month - 1 + months
+    year, month_index = divmod(total, 12)
+    month = month_index + 1
+    return value.replace(year=year, month=month, day=min(value.day, monthrange(year, month)[1]))
+
+
+def employment_duration(start, end) -> str:
+    """Calcula vínculo completo em anos, meses e dias de calendário."""
+    if not start or not end or end < start:
+        return "Não informado"
+    years = end.year - start.year
+    if _add_months(start, years * 12) > end:
+        years -= 1
+    anchor = _add_months(start, years * 12)
+    months = (end.year - anchor.year) * 12 + end.month - anchor.month
+    if _add_months(anchor, months) > end:
+        months -= 1
+    anchor = _add_months(anchor, months)
+    days = (end - anchor).days
+    return f"{years} ano(s), {months} mês(es) e {days} dia(s)"
+
+
 def confirm_action(parent: QWidget, title: str, message: str) -> bool:
     """Exibe confirmação com rótulos fixos em português brasileiro."""
     dialog = QMessageBox(QMessageBox.Icon.Question, title, message, parent=parent)
@@ -66,6 +92,26 @@ def confirm_action(parent: QWidget, title: str, message: str) -> bool:
     dialog.addButton("Não", QMessageBox.ButtonRole.RejectRole)
     dialog.exec()
     return dialog.clickedButton() is yes_button
+
+
+class TerminationDateDialog(QDialog):
+    """Solicita a data obrigatória para inativação do funcionário."""
+
+    def __init__(self, admission_date, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Data de demissão")
+        self.setModal(True)
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("Informe a data de demissão do funcionário:"))
+        self.date = QDateEdit(QDate.currentDate())
+        self.date.setCalendarPopup(True)
+        self.date.setMinimumDate(QDate(admission_date.year, admission_date.month, admission_date.day))
+        layout.addWidget(self.date)
+        buttons = QHBoxLayout()
+        cancel = QPushButton("Cancelar"); cancel.clicked.connect(self.reject)
+        confirm = QPushButton("Confirmar"); confirm.clicked.connect(self.accept)
+        buttons.addStretch(); buttons.addWidget(cancel); buttons.addWidget(confirm)
+        layout.addLayout(buttons)
 
 
 class NewEmployeeDialog(QDialog):
@@ -93,6 +139,14 @@ class NewEmployeeDialog(QDialog):
         self.department = QLineEdit()
         self.start_date = QDateEdit(QDate.currentDate())
         self.start_date.setCalendarPopup(True)
+        self.has_termination_date = QCheckBox("Informar data de demissão")
+        self.termination_date = QDateEdit(QDate.currentDate())
+        self.termination_date.setCalendarPopup(True)
+        self.termination_date.setEnabled(False)
+        self.tenure_label = QLabel("Tempo de vínculo: Não informado")
+        self.has_termination_date.toggled.connect(self._toggle_termination_date)
+        self.start_date.dateChanged.connect(self._update_tenure)
+        self.termination_date.dateChanged.connect(self._update_tenure)
         self.hours_format = QComboBox()
         self.hours_format.addItems(["Selecione", "Diária", "Semanal", "Mensal"])
         self.hours_format.currentIndexChanged.connect(self._update_hours_value)
@@ -111,7 +165,10 @@ class NewEmployeeDialog(QDialog):
         form.addRow("Endereço", self.address)
         form.addRow("Cargo", self.role)
         form.addRow("Setor", self.department)
-        form.addRow("Data início", self.start_date)
+        form.addRow("Data Admissão", self.start_date)
+        form.addRow("Data Demissão", self.termination_date)
+        form.addRow("", self.has_termination_date)
+        form.addRow("", self.tenure_label)
         form.addRow("Carga horária", self.hours_format)
         form.addRow(self.hours_value_label, self.hours_value)
         layout.addLayout(form)
@@ -128,6 +185,9 @@ class NewEmployeeDialog(QDialog):
             self.department.setText(employee.setor or "")
             if employee.data_inicio:
                 self.start_date.setDate(QDate(employee.data_inicio.year, employee.data_inicio.month, employee.data_inicio.day))
+            if employee.data_desligamento:
+                self.termination_date.setDate(QDate(employee.data_desligamento.year, employee.data_desligamento.month, employee.data_desligamento.day))
+                self.has_termination_date.setChecked(True)
             if employee.carga_horaria_formato:
                 self.hours_format.setCurrentText(employee.carga_horaria_formato)
             self.hours_value.setValue(employee.carga_horaria_valor or employee.carga_horaria_diaria or 8)
@@ -142,7 +202,17 @@ class NewEmployeeDialog(QDialog):
         buttons.addWidget(save)
         layout.addLayout(buttons)
         self._update_hours_value(0)
+        self._update_tenure()
         self.resize(self.sizeHint().width() * 3, self.sizeHint().height())
+
+    def _toggle_termination_date(self, enabled: bool) -> None:
+        self.termination_date.setEnabled(enabled)
+        self._update_tenure()
+
+    def _update_tenure(self) -> None:
+        admission = self.start_date.date().toPython()
+        dismissal = self.termination_date.date().toPython() if self.has_termination_date.isChecked() else None
+        self.tenure_label.setText(f"Tempo de vínculo: {employment_duration(admission, dismissal)}")
 
     def _format_name(self, value: str) -> None:
         if self._formatting_name:
@@ -178,6 +248,10 @@ class NewEmployeeDialog(QDialog):
             QMessageBox.warning(self, "CPF inválido", "Informe um CPF válido ou deixe o campo em branco.")
             self.cpf.setFocus()
             return
+        if self.has_termination_date.isChecked() and self.termination_date.date() < self.start_date.date():
+            QMessageBox.warning(self, "Datas inválidas", "A data de demissão não pode ser anterior à data de admissão.")
+            self.termination_date.setFocus()
+            return
         self.accept()
 
     def employee_data(self) -> dict:
@@ -192,6 +266,7 @@ class NewEmployeeDialog(QDialog):
             "cargo": self.role.text().strip(),
             "setor": self.department.text().strip(),
             "data_inicio": self.start_date.date().toPython(),
+            "data_desligamento": self.termination_date.date().toPython() if self.has_termination_date.isChecked() else None,
             "carga_horaria_formato": self.hours_format.currentText(),
             "carga_horaria_valor": self.hours_value.value(),
         }
@@ -282,12 +357,20 @@ class EmployeesPage(QWidget):
 
     def move_selected(self) -> None:
         employee_id = self._selected_id()
-        if employee_id is None:
+        employee = self._selected_employee()
+        if employee_id is None or employee is None:
             return
         moving_to_active = self.tabs.currentIndex() == 1
         destination = "Funcionários Ativos" if moving_to_active else "Funcionários Inativos"
         if confirm_action(self, "Alterar situação", f"Mover o funcionário selecionado para {destination}?"):
-            self.service.set_active(employee_id, moving_to_active)
+            termination_date = None
+            if not moving_to_active:
+                admission_date = employee.data_inicio or QDate.currentDate().toPython()
+                dialog = TerminationDateDialog(admission_date, self)
+                if dialog.exec() != QDialog.DialogCode.Accepted:
+                    return
+                termination_date = dialog.date.date().toPython()
+            self.service.set_active(employee_id, moving_to_active, termination_date)
             self.refresh()
 
     def delete_employee(self) -> None:

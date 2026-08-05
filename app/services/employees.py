@@ -49,6 +49,7 @@ class EmployeeService:
             employee.pis_pasep = data.get("pis_pasep") or None
             employee.endereco = data.get("endereco") or None
             employee.data_inicio = data.get("data_inicio")
+            employee.data_desligamento = data.get("data_desligamento")
             employee.cargo, employee.setor = data.get("cargo"), data.get("setor")
             employee.carga_horaria_formato = data.get("carga_horaria_formato") or "Diária"
             employee.carga_horaria_valor = float(data.get("carga_horaria_valor", data.get("carga_horaria_diaria", 8)))
@@ -62,11 +63,12 @@ class EmployeeService:
                 employee.ativo = bool(data.get("ativo", True))
             return self.repository.save(session, employee)
 
-    def set_active(self, employee_id: int, active: bool) -> None:
+    def set_active(self, employee_id: int, active: bool, data_desligamento=None) -> None:
         with self.database.session() as session:
             employee = self.repository.get(session, employee_id)
             if employee:
                 employee.ativo = active
+                employee.data_desligamento = None if active else data_desligamento
 
     def toggle(self, employee_id: int) -> None:
         with self.database.session() as session:
